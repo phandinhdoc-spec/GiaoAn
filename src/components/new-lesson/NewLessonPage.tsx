@@ -46,22 +46,7 @@ export const NewLessonPage: React.FC<NewLessonPageProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [files, setFiles] = useState<UploadedFileItem[]>([
-    {
-      id: 'file-sgk-1',
-      name: 'SGK_KHTN_8_KetNoiTriThuc_Bai5_DinhLuatBaoToanKhoiLuong.pdf',
-      size: '4.8 MB',
-      type: 'pdf',
-      priority: 'high',
-    },
-    {
-      id: 'file-cv-2',
-      name: 'Huong_dan_thuc_hien_CV_5512_KHTN8_MonHoa.docx',
-      size: '1.2 MB',
-      type: 'docx',
-      priority: 'high',
-    },
-  ]);
+  const [files, setFiles] = useState<UploadedFileItem[]>([]);
 
   const handleFillSampleKHTN8 = () => {
     setSubject('Khoa học tự nhiên');
@@ -74,29 +59,7 @@ export const NewLessonPage: React.FC<NewLessonPageProps> = ({
     setAdditionalNotes(
       'Bộ sách Kết nối tri thức với cuộc sống. Lớp học có 4 nhóm, mỗi nhóm 8 học sinh. Chú trọng bảo đảm an toàn khi tiếp xúc với hóa chất BaCl2 độc hại.'
     );
-    setFiles([
-      {
-        id: 'file-sgk-1',
-        name: 'SGK_KHTN_8_KetNoiTriThuc_Bai5_DinhLuatBaoToanKhoiLuong.pdf',
-        size: '4.8 MB',
-        type: 'pdf',
-        priority: 'high',
-      },
-      {
-        id: 'file-cv-2',
-        name: 'Huong_dan_thuc_hien_CV_5512_KHTN8_MonHoa.docx',
-        size: '1.2 MB',
-        type: 'docx',
-        priority: 'high',
-      },
-      {
-        id: 'file-pptx-3',
-        name: 'Slide_BaiGiang_DienTu_KHTN8_Bai5_PhanUngHoaHoc.pptx',
-        size: '14.5 MB',
-        type: 'pptx',
-        priority: 'medium',
-      },
-    ]);
+    setFiles([]);
   };
 
   const handleFileDrop = (e: React.DragEvent) => {
@@ -160,6 +123,11 @@ export const NewLessonPage: React.FC<NewLessonPageProps> = ({
       alert('Vui lòng tải lên ít nhất một tài liệu nguồn (SGK, tài liệu giảng dạy).');
       return;
     }
+    const filesToUpload = files.filter((file): file is UploadedFileItem & { fileObj: File } => !!file.fileObj);
+    if (filesToUpload.length !== files.length) {
+      alert('Vui lòng chọn lại các tệp tài liệu từ máy tính trước khi tải lên.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -177,13 +145,12 @@ export const NewLessonPage: React.FC<NewLessonPageProps> = ({
       // Step 2: Upload source documents
       await apiService.uploadSources(
         newProj.id,
-        files.map((f) => ({
-          name: f.name,
-          size: f.size,
-          type: f.type,
+        filesToUpload.map((f) => ({
+          file: f.fileObj,
           priority: f.priority,
         }))
       );
+      await apiService.getSources(newProj.id);
 
       // Select newly created project and navigate to source analysis
       onSelectProject(newProj.id);
@@ -392,7 +359,7 @@ export const NewLessonPage: React.FC<NewLessonPageProps> = ({
               ref={fileInputRef}
               onChange={handleFileSelect}
               multiple
-              accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md"
+              accept=".pdf,.doc,.docx,.docm,.ppt,.pptx,.pptm,.xls,.xlsx,.xlsm,.xlsb,.odt,.ods,.odp,.rtf,.epub,.csv"
               className="hidden"
             />
             <div className="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">

@@ -1,0 +1,6 @@
+.venv/
+data/app.db
+data/uploads/
+data/markdown/
+__pycache__/
+*.py[cod]

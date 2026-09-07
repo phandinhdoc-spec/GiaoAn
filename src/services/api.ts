@@ -10,8 +10,6 @@ import {
   AnalysisSummary,
 } from '../types';
 import {
-  INITIAL_PROJECTS,
-  INITIAL_SOURCES_SAMPLE,
   INITIAL_LESSON_SAMPLE,
   INITIAL_TEMPLATES,
   INITIAL_REVIEW_ISSUES_SAMPLE,
@@ -23,10 +21,10 @@ import {
  * All UI components MUST interact with this exclusively via the ApiService instance.
  */
 class ApiStorage {
-  private projects: Project[] = [...INITIAL_PROJECTS];
-  private sources: Record<string, SourceDocument[]> = {
-    'proj-khtn8-bai5': [...INITIAL_SOURCES_SAMPLE],
-  };
+  // TODO(backend): temporary state only for the remaining non-MVP mock flows.
+  // Project and source API methods below do not read or write this state.
+  private projects: Project[] = [];
+  private sources: Record<string, SourceDocument[]> = {};
   private lessons: Record<string, Lesson> = {
     'proj-khtn8-bai5': { ...INITIAL_LESSON_SAMPLE },
   };
@@ -196,7 +194,18 @@ class ApiStorage {
 
 const storage = new ApiStorage();
 
-// Simulate realistic network latency (150ms - 400ms)
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '');
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, init);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.detail || `Yêu cầu máy chủ thất bại (${response.status}).`);
+  }
+  return response.status === 204 ? (true as T) : (response.json() as Promise<T>);
+}
+
+// TODO(backend): Chỉ còn dùng cho các luồng AI/thẩm định/Typst chưa thuộc MVP.
 const delay = (ms: number = 250) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -208,56 +217,32 @@ export class ApiService {
    * GET /api/projects
    */
   async getProjects(): Promise<Project[]> {
-    await delay(200);
-    return storage.getProjectsList();
+    return request<Project[]>('/projects');
   }
 
   /**
    * POST /api/projects
    */
   async createProject(data: Partial<Project>): Promise<Project> {
-    await delay(300);
-    const newId = `proj-${Date.now()}`;
-    const newProject: Project = {
-      id: newId,
-      title: data.title || 'Kế hoạch bài dạy mới',
-      subject: data.subject || 'Khoa học tự nhiên',
-      grade: data.grade || 'Lớp 8',
-      periods: data.periods || 2,
-      learningOutcomes: data.learningOutcomes || '',
-      additionalNotes: data.additionalNotes || '',
-      status: 'uploaded',
-      createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      sourceCount: 0,
-      templateId: data.templateId || 'tpl-cv5512-standard',
-      progressPercentage: 10,
-      currentStageName: 'Đã tạo dự án, sẵn sàng nạp tài liệu',
-      schoolName: data.schoolName || 'Trường THCS Chuẩn Quốc Gia',
-      teacherName: data.teacherName || 'Giáo viên bộ môn KHTN',
-    };
-    return storage.addProject(newProject);
+    return request<Project>('/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
   }
 
   /**
    * GET /api/projects/:id
    */
   async getProject(id: string): Promise<Project> {
-    await delay(180);
-    const project = storage.getProjectById(id);
-    if (!project) {
-      throw new Error(`Dự án #${id} không tồn tại`);
-    }
-    return project;
+    return request<Project>(`/projects/${encodeURIComponent(id)}`);
   }
 
   /**
    * DELETE /api/projects/:id
    */
   async deleteProject(id: string): Promise<boolean> {
-    await delay(200);
-    storage.removeProject(id);
-    return true;
+    return request<boolean>(`/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
 
   /**
@@ -265,72 +250,36 @@ export class ApiService {
    */
   async uploadSources(
     projectId: string,
-    files: Array<{ name: string; size: string; type: string; priority: 'high' | 'medium' | 'low' }>
+    files: Array<{ file: File; priority: 'high' | 'medium' | 'low' }>
   ): Promise<SourceDocument[]> {
-    await delay(350);
-    const project = await this.getProject(projectId);
-
-    const newDocs: SourceDocument[] = files.map((f, index) => {
-      const ext = f.name.split('.').pop()?.toLowerCase();
-      const fileType = ext === 'pdf' ? 'pdf' : ext === 'docx' || ext === 'doc' ? 'docx' : ext === 'pptx' || ext === 'ppt' ? 'pptx' : 'other';
-
-      return {
-        id: `src-${Date.now()}-${index}`,
-        projectId,
-        fileName: f.name,
-        fileSize: f.size,
-        fileType,
-        priority: f.priority,
-        uploadedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-        relevanceScore: Math.floor(Math.random() * 15) + 85,
-        summary: `Tài liệu nguồn: ${f.name}. Phân tích ban đầu xác định chứa nội dung kiến thức trọng tâm cho môn ${project.subject} ${project.grade}.`,
-        markdownContent: `## TÀI LIỆU NGUỒN TRÍCH XUẤT: ${f.name}\n\n### Nội dung chính\n- Phân tích kiến thức môn: ${project.subject} - ${project.grade}.\n- Yêu cầu cần đạt phát triển năng lực học sinh.\n- Chuỗi hoạt động và gợi ý sư phạm cho thời lượng ${project.periods} tiết.`,
-        detectedItems: {
-          objectives: [
-            `Mục tiêu kiến thức chuẩn môn ${project.subject} ${project.grade}`,
-            'Phát triển năng lực tìm hiểu và vận dụng tự nhiên',
-            'Rèn luyện kỹ năng thực nghiệm và quan sát khoa học',
-          ],
-          activities: [
-            'Hoạt động mở đầu kích thích tư duy tình huống',
-            'Khám phá kiến thức qua thí nghiệm thực hành',
-            'Luyện tập giải bài toán thực tế và củng cố phương pháp',
-          ],
-          exercises: [
-            'Câu hỏi tự luận đánh giá năng lực tư duy',
-            'Bài tập trắc nghiệm khách quan 4 mức độ nhận biết - thông hiểu - vận dụng',
-          ],
-          experiments: [
-            'Thí nghiệm thực hành theo nhóm với dụng cụ tiêu chuẩn',
-          ],
-          imagesAndTables: [
-            'Sơ đồ tư duy tổng kết bài học',
-            'Bảng đối chiếu thông số và phiếu học tập tự đánh giá',
-          ],
-        },
-      };
-    });
-
-    for (const doc of newDocs) {
-      storage.addSourceToProject(projectId, doc);
+    const uploaded: SourceDocument[] = [];
+    for (const item of files) {
+      const body = new FormData();
+      body.append('file', item.file);
+      body.append('priority', item.priority);
+      uploaded.push(await request<SourceDocument>(`/projects/${encodeURIComponent(projectId)}/sources`, { method: 'POST', body }));
     }
-
-    storage.updateProjectData(projectId, {
-      status: 'converting',
-      progressPercentage: 25,
-      currentStageName: 'Đã tải lên và chuyển đổi tài liệu nguồn',
-    });
-
-    return storage.getSourcesByProject(projectId);
+    return uploaded;
   }
 
   /**
    * DELETE /api/projects/:id/sources/:sourceId
    */
   async deleteSource(projectId: string, sourceId: string): Promise<boolean> {
-    await delay(150);
-    storage.deleteSourceFromProject(projectId, sourceId);
-    return true;
+    return request<boolean>(`/projects/${encodeURIComponent(projectId)}/sources/${encodeURIComponent(sourceId)}`, { method: 'DELETE' });
+  }
+
+  async getSources(projectId: string): Promise<SourceDocument[]> {
+    return request<SourceDocument[]>(`/projects/${encodeURIComponent(projectId)}/sources`);
+  }
+
+  async getSourceMarkdown(sourceId: string): Promise<string> {
+    const response = await fetch(`${API_BASE_URL}/sources/${encodeURIComponent(sourceId)}/markdown`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.detail || 'Không thể tải Markdown của tài liệu.');
+    }
+    return response.text();
   }
 
   /**
@@ -341,15 +290,8 @@ export class ApiService {
     sources: SourceDocument[];
     summary: AnalysisSummary;
   }> {
-    await delay(600);
     const project = await this.getProject(projectId);
-    let sources = storage.getSourcesByProject(projectId);
-
-    // If project has no sources yet, seed with sample sources
-    if (sources.length === 0) {
-      sources = [...INITIAL_SOURCES_SAMPLE.map((s) => ({ ...s, projectId }))];
-      storage.setSourcesForProject(projectId, sources);
-    }
+    const sources = await this.getSources(projectId);
 
     const allObjectives = Array.from(new Set(sources.flatMap((s) => s.detectedItems.objectives)));
     const allActivities = Array.from(new Set(sources.flatMap((s) => s.detectedItems.activities)));
@@ -359,29 +301,18 @@ export class ApiService {
 
     const summary: AnalysisSummary = {
       totalSources: sources.length,
-      totalTokensEstimated: sources.length * 5200,
-      overallSummary: `Hệ thống AI đã phân tích toàn diện ${sources.length} tài liệu nguồn cho bài học "${project.title}". Nội dung bám sát khung Chương trình GDPT 2018 và quy chuẩn Công văn 5512/BGDĐT. Các hoạt động học tập được phân bổ cân đối giữa tư duy lý thuyết và năng lực thực hành thí nghiệm.`,
+      totalTokensEstimated: 0,
+      overallSummary: `Đã chuyển đổi cục bộ ${sources.length} tài liệu nguồn của bài học "${project.title}" sang Markdown. Chức năng phân tích AI chưa thuộc MVP.`,
       detectedObjectives: allObjectives,
       detectedTeachingActivities: allActivities,
       exercises: allExercises,
       experiments: allExperiments,
       imagesAndTables: allImagesAndTables,
-      pedagogicalInsights: [
-        'Khuyến nghị tích hợp thí nghiệm thực hành nhóm để tạo hứng thú cho học sinh THCS',
-        'Cần phân định rõ ràng thời lượng giữa hình thành kiến thức mới (60%) và luyện tập vận dụng (40%)',
-        'Bổ sung bảng tiêu chí Rubric đánh giá năng lực hợp tác và an toàn phòng thí nghiệm',
-        'Tận dụng triệt để hình ảnh 3D và sơ đồ tư duy để trực quan hóa kiến thức trừu tượng',
-      ],
+      pedagogicalInsights: [],
     };
 
-    const updatedProject = storage.updateProjectData(projectId, {
-      status: 'analyzing',
-      progressPercentage: 45,
-      currentStageName: 'Phân tích tài liệu nguồn hoàn tất, sẵn sàng sinh giáo án',
-    });
-
     return {
-      project: updatedProject,
+      project,
       sources,
       summary,
     };

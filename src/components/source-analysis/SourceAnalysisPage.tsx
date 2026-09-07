@@ -65,6 +65,16 @@ export const SourceAnalysisPage: React.FC<SourceAnalysisPageProps> = ({
     }
   };
 
+  const handleViewMarkdown = async (source: SourceDocument) => {
+    try {
+      const markdownContent = await apiService.getSourceMarkdown(source.id);
+      setSelectedSourceForView({ ...source, markdownContent });
+    } catch (err: any) {
+      console.error('Failed to load Markdown:', err);
+      alert('Không thể tải Markdown của tài liệu: ' + (err.message || err));
+    }
+  };
+
   if (!activeProject) {
     return (
       <div className="p-12 text-center text-slate-500">
@@ -202,7 +212,7 @@ export const SourceAnalysisPage: React.FC<SourceAnalysisPageProps> = ({
 
                   <button
                     id={`btn-view-markdown-${doc.id}`}
-                    onClick={() => setSelectedSourceForView(doc)}
+                    onClick={() => handleViewMarkdown(doc)}
                     className="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <Eye className="w-3.5 h-3.5" />
