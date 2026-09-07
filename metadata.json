@@ -1,0 +1,6 @@
+{
+  "name": "Giáo Án AI - Soạn Kế Hoạch Bài Dạy",
+  "description": "Nền tảng hỗ trợ giáo viên tạo kế hoạch bài dạy chuẩn sư phạm (CV 5512) với AI từ tài liệu nguồn, phân tích sư phạm, chỉnh sửa chuyên sâu và xuất bản Typst/PDF.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
